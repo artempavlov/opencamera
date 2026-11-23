@@ -378,7 +378,7 @@ public class StorageUtils {
     // only valid if !isUsingSAF()
     String getSaveLocation() {
         SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(context);
-        return sharedPreferences.getString(PreferenceKeys.SaveLocationPreferenceKey, "OpenCamera");
+        return sharedPreferences.getString(PreferenceKeys.SaveLocationPreferenceKey, context.getString(R.string.pjd_save_folder));
     }
 
     // only valid if isUsingSAF()

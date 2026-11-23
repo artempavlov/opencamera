@@ -1,16 +1,23 @@
 apply plugin: 'com.android.application'
 
+def packageId = providers.gradleProperty('cameraApplicationId').getOrElse('net.sourceforge.opencamera.pjd110')
+if (!(packageId ==~ /[a-zA-Z][a-zA-Z0-9_]*(\.[a-zA-Z][a-zA-Z0-9_]*)+/)) {
+    throw new GradleException('cameraApplicationId must be a valid Android application ID.')
+}
+
 android {
     compileSdk = 36
     compileOptions.encoding = 'UTF-8'
 
     defaultConfig {
-        applicationId "net.sourceforge.opencamera.pjd110"
+        applicationId packageId
+        resValue 'string', 'pjd_package_id', packageId
+        resValue 'string', 'pjd_app_name', providers.gradleProperty('cameraAppName').getOrElse('Open Camera FPS')
+        resValue 'string', 'pjd_save_folder', providers.gradleProperty('cameraSaveFolder').getOrElse('OpenCamera')
         minSdkVersion 23
         targetSdkVersion 36
         //compileSdkVersion 31 // needed to support appcompat:1.4.0 (which we need for emoji policy support, and not yet ready to target SDK 30)
 
-        testApplicationId "net.sourceforge.opencamera.test"
         //testInstrumentationRunner "android.test.InstrumentationTestRunner"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }

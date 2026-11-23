@@ -1,5 +1,4 @@
 <resources>
-    <string name="pjd_app_name" translatable="false">Open Camera FPS</string>
     <string name="pjd_video_mode">Video mode</string>
     <string name="pjd_rate">%1$d fps</string>
 </resources>

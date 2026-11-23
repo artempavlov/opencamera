@@ -20,15 +20,21 @@
 
 Результат — `app/build/outputs/apk/debug/app-debug.apk`, пакет `net.sourceforge.opencamera.pjd110`.
 
-Для **Open Camera FPS 2** создайте отдельную рабочую копию, чтобы не менять исходники первой. Команда `git worktree add` ниже предполагает, что соседний каталог `opencamera-fps-2` свободен:
+Чтобы установить тот же код рядом с основной копией, укажите другой ID пакета:
 
 ```sh
-git worktree add --detach ../opencamera-fps-2 HEAD
-python3 tools/prepare-second.py ../opencamera-fps-2
-cd ../opencamera-fps-2
-./gradlew :app:assembleDebug
+./gradlew :app:assembleDebug -PcameraApplicationId=com.example.mycamera
 ```
 
-У второй копии свой пакет `net.sourceforge.opencamera.pjd110.second`, свои настройки и каталог по умолчанию `DCIM/OpenCameraFPS2`. Для обновления уже установленного APK Android требует подпись тем же ключом.
+Название под иконкой и папку по умолчанию можно задать независимо. Например, чтобы собрать APK для обновления уже установленной **Open Camera FPS 2**:
+
+```sh
+./gradlew :app:assembleDebug \
+  -PcameraApplicationId=net.sourceforge.opencamera.pjd110.second \
+  '-PcameraAppName=Open Camera FPS 2' \
+  -PcameraSaveFolder=OpenCameraFPS2
+```
+
+Разные ID пакетов дают отдельные настройки. Если не указать `cameraSaveFolder`, обе установки по умолчанию используют `DCIM/OpenCamera`. Скопируйте готовый APK перед следующей сборкой: путь результата у них один. Для обновления уже установленного APK Android требует подпись тем же ключом.
 
 Лицензия Open Camera: [GPLv3](gpl-3.0.txt). Уведомления и лицензии сторонних компонентов сохранены из upstream.
