@@ -923,6 +923,20 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
         // N.B., in practice the hasSetCameraId() check is pointless as we don't save the camera ID in shared preferences, so it will always
         // be false when application is started from onCreate(), unless resuming from saved instance (in which case we shouldn't be here anyway)
         if( !done_facing && !applicationInterface.hasSetCameraId() ) {
+            // This build's launcher opens the same direct main camera as the preset picker.
+            // Preserve upstream intent/tile routing and fallback when auxiliaries are hidden.
+            if( "PJD110".equals(Build.MODEL) && applicationInterface.useCamera2() &&
+                    Intent.ACTION_MAIN.equals(getIntent().getAction()) ) {
+                try {
+                    android.hardware.camera2.CameraManager cm = getSystemService(android.hardware.camera2.CameraManager.class);
+                    String[] ids = cm.getCameraIdList();
+                    if( ids.length > 2 && "2".equals(ids[2]) && Integer.valueOf(android.hardware.camera2.CameraCharacteristics.LENS_FACING_BACK).equals(
+                            cm.getCameraCharacteristics(ids[2]).get(android.hardware.camera2.CameraCharacteristics.LENS_FACING)) ) {
+                        applicationInterface.setCameraIdPref(2, null);
+                        return;
+                    }
+                } catch(android.hardware.camera2.CameraAccessException | SecurityException ignored) { }
+            }
             if( MyDebug.LOG )
                 Log.d(TAG, "initialise to back camera");
             // most devices have first camera as back camera anyway so this wouldn't be needed, but some (e.g., LG G6) have first camera

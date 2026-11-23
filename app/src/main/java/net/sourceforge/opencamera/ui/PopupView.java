@@ -156,6 +156,9 @@ public class PopupView extends LinearLayout {
             // don't add any more options
         }
         else {
+            if( preview.isVideo() && preview.getCameraController() instanceof net.sourceforge.opencamera.cameracontroller.CameraController2 ) {
+                addVideoModePicker(main_activity, preview);
+            }
             // make a copy of getSupportedFocusValues() so we can modify it
             List<String> supported_focus_values = preview.getSupportedFocusValues();
             MyApplicationInterface.PhotoMode photo_mode = main_activity.getApplicationInterface().getPhotoMode();
@@ -1554,6 +1557,54 @@ public class PopupView extends LinearLayout {
 
     static void setButtonSelected(View view, boolean selected) {
         view.setAlpha(selected ? ALPHA_BUTTON_SELECTED : ALPHA_BUTTON);
+    }
+
+    private void addVideoModePicker(final MainActivity activity, final Preview preview) {
+        Button button = (Button) LayoutInflater.from(activity).inflate(R.layout.popupview_button, this, false).findViewById(R.id.button);
+        button.setAllCaps(false);
+        button.setBackgroundColor(Color.TRANSPARENT);
+        button.setTextSize(TypedValue.COMPLEX_UNIT_SP, title_text_size_dip);
+        button.setText(R.string.pjd_video_mode);
+        addView(button);
+        button.setOnClickListener(v -> {
+            if( !(preview.getCameraController() instanceof net.sourceforge.opencamera.cameracontroller.CameraController2) ) return;
+            List<Integer> rates = new ArrayList<>(((net.sourceforge.opencamera.cameracontroller.CameraController2)preview.getCameraController()).getFixedVideoRates());
+            for(int i=rates.size()-1; i>=0; i--) {
+                if( preview.getSupportedVideoQuality(rates.get(i).toString()).isEmpty() ) rates.remove(i);
+            }
+            if( rates.isEmpty() ) return;
+            CharSequence[] labels = new CharSequence[rates.size()];
+            String selected = activity.getApplicationInterface().getVideoFPSPref();
+            int checked = -1;
+            for(int i=0; i<rates.size(); i++) {
+                labels[i] = activity.getString(R.string.pjd_rate, rates.get(i));
+                if( rates.get(i).toString().equals(selected) ) checked = i;
+            }
+            new android.app.AlertDialog.Builder(activity).setTitle(R.string.pjd_video_mode)
+                .setSingleChoiceItems(labels, checked, (dialog, index) -> {
+                    dialog.dismiss();
+                    String fps = rates.get(index).toString();
+                    List<String> qualities = preview.getSupportedVideoQuality(fps);
+                    CharSequence[] sizes = new CharSequence[qualities.size()];
+                    for(int j=0; j<sizes.length; j++) {
+                        android.media.CamcorderProfile p = preview.getCamcorderProfile(qualities.get(j));
+                        sizes[j] = p.videoFrameWidth + " × " + p.videoFrameHeight;
+                        if( p.videoFrameWidth == 7680 && p.videoFrameHeight == 4320 ) sizes[j] = "8K · " + sizes[j];
+                    }
+                    new android.app.AlertDialog.Builder(activity).setTitle(labels[index])
+                        .setSingleChoiceItems(sizes, qualities.indexOf(preview.getVideoQualityHander().getCurrentVideoQuality()), (sd, j) -> {
+                            sd.dismiss();
+                            int id = preview.getCameraId();
+                            String physical = activity.getApplicationInterface().getCameraIdSPhysicalPref();
+                            PreferenceManager.getDefaultSharedPreferences(activity).edit()
+                                .putString(PreferenceKeys.getVideoFPSPreferenceKey(id, physical), fps)
+                                .putFloat(PreferenceKeys.getVideoCaptureRatePreferenceKey(id, physical), 1f)
+                                .putString(PreferenceKeys.getVideoQualityPreferenceKey(id, physical, preview.fpsIsHighSpeed(fps)), qualities.get(j))
+                                .apply();
+                            activity.updateForSettings(true, sizes[j] + " · " + labels[index]);
+                        }).setNegativeButton(android.R.string.cancel, null).show();
+                }).setNegativeButton(android.R.string.cancel, null).show();
+        });
     }
 
     private void addTitleToPopup(final String title) {

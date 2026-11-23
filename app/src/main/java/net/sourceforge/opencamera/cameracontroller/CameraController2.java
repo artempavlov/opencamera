@@ -267,6 +267,40 @@ public class CameraController2 extends CameraController {
     private boolean is_video_high_speed; // whether we're actually recording in high speed
     private List<int[]> ae_fps_ranges;
     private List<int[]> hs_fps_ranges;
+    private final java.util.Set<android.util.Size> oplus60Sizes = new java.util.HashSet<>();
+    private boolean oplus60Recording;
+
+    private void readOplus60Sizes() {
+        oplus60Sizes.clear();
+        if( !"PJD110".equals(Build.MODEL) || !"2".equals(cameraIdS) || cameraIdSPhysical != null ) return;
+        // Published by this exact build in camera-service metadata (F-019). Some
+        // vendor keys are filtered from the Java characteristics list for apps.
+        if( "PJD110_16.0.2.400(CN01)".equals(Build.DISPLAY) ) {
+            oplus60Sizes.add(new android.util.Size(1280,720));
+            oplus60Sizes.add(new android.util.Size(1920,1080));
+            oplus60Sizes.add(new android.util.Size(3840,2160));
+            return;
+        }
+        for(CameraCharacteristics.Key<?> key : characteristics.getKeys()) {
+            if( !key.getName().equals("org.quic.camera2.streamBasedFPS.info.StreamBasedFPSTable") ) continue;
+            Object table = characteristics.get(key);
+            if( !(table instanceof int[]) ) return;
+            int[] rows = (int[])table;
+            for(int i=0; i+3<rows.length; i+=4) {
+                int w=rows[i], h=rows[i+1];
+                if( rows[i+2]==60 && rows[i+3]==60 && ((w==1280 && h==720) || (w==1920 && h==1080) || (w==3840 && h==2160)) )
+                    oplus60Sizes.add(new android.util.Size(w,h));
+            }
+        }
+    }
+    public boolean prepareOplusVideo(int width, int height, double rate) {
+        oplus60Recording = rate == 60.0 && oplus60Sizes.contains(new android.util.Size(width,height));
+        return oplus60Recording || isPjd8k(width,height); // keep preview and recorder outputs only
+    }
+
+    public boolean isPjd8k(int width, int height) {
+        return width == 7680 && height == 4320 && "PJD110".equals(Build.MODEL) && "2".equals(cameraIdS) && cameraIdSPhysical == null;
+    }
     //private ImageReader previewImageReader;
     private SurfaceTexture texture;
     private Surface surface_texture;
@@ -2174,6 +2208,7 @@ public class CameraController2 extends CameraController {
             Log.d(TAG, "output_formats: " + Arrays.toString(configs.getOutputFormats()));
         }
 
+        readOplus60Sizes();
         ae_fps_ranges = new ArrayList<>();
         for (Range<Integer> r : characteristics.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES)) {
             ae_fps_ranges.add(new int[] {r.getLower(), r.getUpper()});
@@ -2199,12 +2234,15 @@ public class CameraController2 extends CameraController {
         }
         else {
             for(android.util.Size camera_size : camera_video_sizes) {
-                if( camera_size.getWidth() > 4096 || camera_size.getHeight() > 2160 )
+                boolean is8k = isPjd8k(camera_size.getWidth(), camera_size.getHeight());
+                if( !is8k && (camera_size.getWidth() > 4096 || camera_size.getHeight() > 2160) )
                     continue; // Nexus 6 returns these, even though not supported?!
                 long mfd = configs.getOutputMinFrameDuration(MediaRecorder.class, camera_size);
                 int  max_fps = (int)((1.0 / mfd) * 1000000000L);
+                if( is8k && (mfd <= 0 || mfd > 41666667L) ) continue;
                 ArrayList<int[]> fr = new ArrayList<>();
-                fr.add(new int[] {min_fps, max_fps});
+                fr.add(is8k ? new int[] {24,24} : new int[] {min_fps, max_fps});
+                if( oplus60Sizes.contains(camera_size) ) fr.add(new int[] {60,60});
                 CameraController.Size normal_video_size = new CameraController.Size(camera_size.getWidth(), camera_size.getHeight(), fr, false);
                 camera_features.video_sizes.add(normal_video_size);
                 if( MyDebug.LOG ) {
@@ -4477,6 +4515,15 @@ public class CameraController2 extends CameraController {
         }
     }
 
+    /** Discrete capture rates from both maps, independent of the current session. */
+    public java.util.SortedSet<Integer> getFixedVideoRates() {
+        java.util.SortedSet<Integer> rates = new java.util.TreeSet<>();
+        if( !oplus60Sizes.isEmpty() ) rates.add(60);
+        if( ae_fps_ranges != null ) for(int[] r : ae_fps_ranges) if( r[0] == r[1] ) rates.add(r[1]);
+        if( hs_fps_ranges != null ) for(int[] r : hs_fps_ranges) if( r[0] == r[1] ) rates.add(r[1]);
+        return rates;
+    }
+
     @Override
     public List<int[]> getSupportedPreviewFpsRange() {
         if( MyDebug.LOG )
@@ -5719,12 +5766,22 @@ public class CameraController2 extends CameraController {
                 if( MyDebug.LOG )
                     Log.d(TAG, "create capture session");
                 try {
-                    if( ( cameraIdSPhysical != null || want_jpeg_r ) && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P ) {
+                    final boolean useOplus60 = video_recorder != null && oplus60Recording;
+                    if( ( useOplus60 || cameraIdSPhysical != null || want_jpeg_r ) && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P ) {
                         List<OutputConfiguration> outputs = createOutputConfigurationList(surfaces, preview_surface);
                         /*camera.createCaptureSessionByOutputConfigurations(outputs,
                                 myStateCallback,
                                 handler);*/
                         SessionConfiguration sessionConfiguration = new SessionConfiguration(SessionConfiguration.SESSION_REGULAR, outputs, executor, myStateCallback);
+                        if( useOplus60 ) {
+                            previewBuilder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, new Range<>(60,60));
+                            // Match the record-state flags in the stock camera's recording request.
+                            for(String name : new String[] {"com.oplus.video.record.state", "com.oplus.eis.record.state"}) {
+                                try { previewBuilder.set(new CaptureRequest.Key<>(name, Integer.class), 1); }
+                                catch(IllegalArgumentException e) { Log.w(TAG, "No record-state key: " + name, e); }
+                            }
+                            sessionConfiguration.setSessionParameters(previewBuilder.build());
+                        }
                         launchCameraSession(wait_until_started, new CreateCaptureSessionFunction() {
                             @Override
                             public void call() throws CameraAccessException {

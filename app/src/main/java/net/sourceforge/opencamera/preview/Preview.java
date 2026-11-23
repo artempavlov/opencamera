@@ -3826,6 +3826,10 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
         }
 
         String pref_video_output_format = applicationInterface.getRecordVideoOutputFormatPref();
+        if( camera_controller instanceof CameraController2 && ((CameraController2)camera_controller).isPjd8k(video_profile.videoFrameWidth, video_profile.videoFrameHeight) ) {
+            pref_video_output_format = "preference_video_output_format_mpeg4_hevc";
+            if( bitrate_value.equals("default") ) video_profile.videoBitRate = 80000000;
+        }
         if( MyDebug.LOG )
             Log.d(TAG, "pref_video_output_format: " + pref_video_output_format);
         switch( pref_video_output_format ) {
@@ -4030,6 +4034,9 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
         final double ASPECT_TOLERANCE = 0.05;
         if( sizes == null )
             return null;
+        if( is_video && "PJD110".equals(Build.MODEL) && getCameraId() == 2 && "60".equals(applicationInterface.getVideoFPSPref()) ) {
+            for(CameraController.Size size : sizes) if(size.width == 1280 && size.height == 720) return size;
+        }
         if( is_video && video_high_speed ) {
             VideoProfile profile = getVideoProfile();
             if( MyDebug.LOG )
@@ -6172,6 +6179,8 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
                 }
 
                 boolean want_photo_video_recording = supportsPhotoVideoRecording() && applicationInterface.usePhotoVideoRecording();
+                if( camera_controller instanceof CameraController2 && ((CameraController2)camera_controller).prepareOplusVideo(profile.videoFrameWidth, profile.videoFrameHeight, profile.videoCaptureRate) )
+                    want_photo_video_recording = false;
 
                 camera_controller.initVideoRecorderPostPrepare(local_video_recorder, want_photo_video_recording);
                 if( test_video_cameracontrollerexception ) {

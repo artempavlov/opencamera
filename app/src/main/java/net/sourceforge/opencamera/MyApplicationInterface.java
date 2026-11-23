@@ -736,11 +736,14 @@ public class MyApplicationInterface extends BasicApplicationInterface {
 
     @Override
     public String getRecordVideoOutputFormatPref() {
+        if( "PJD110".equals(Build.MODEL) && cameraId == 2 && cameraIdSPhysical == null && "60".equals(sharedPreferences.getString(PreferenceKeys.getVideoFPSPreferenceKey(2, null), "default")) ) return "preference_video_output_format_mpeg4_hevc";
+        if( usePjdHighSpeedProfile() ) return "preference_video_output_format_mpeg4_hevc";
         return sharedPreferences.getString(PreferenceKeys.VideoFormatPreferenceKey, "preference_video_output_format_default");
     }
 
     @Override
     public String getVideoBitratePref() {
+        if( usePjdHighSpeedProfile() ) return "120000000";
         return sharedPreferences.getString(PreferenceKeys.VideoBitratePreferenceKey, "default");
     }
 
@@ -1248,6 +1251,7 @@ public class MyApplicationInterface extends BasicApplicationInterface {
 
     @Override
     public boolean getRecordAudioPref() {
+        if( usePjdHighSpeedProfile() ) return false;
         return sharedPreferences.getBoolean(PreferenceKeys.RecordAudioPreferenceKey, true);
     }
 
@@ -1259,6 +1263,13 @@ public class MyApplicationInterface extends BasicApplicationInterface {
     @Override
     public String getRecordAudioSourcePref() {
         return sharedPreferences.getString(PreferenceKeys.RecordAudioSourcePreferenceKey, "audio_src_camcorder");
+    }
+
+    private boolean usePjdHighSpeedProfile() {
+        if( !"PJD110".equals(android.os.Build.MODEL) || cameraId != 2 || cameraIdSPhysical != null ) return false;
+        if( sharedPreferences.getFloat(PreferenceKeys.getVideoCaptureRatePreferenceKey(2, null), 1f) != 1f ) return false;
+        String fps = sharedPreferences.getString(PreferenceKeys.getVideoFPSPreferenceKey(2, null), "default");
+        return "120".equals(fps) || "240".equals(fps) || "480".equals(fps);
     }
 
     public boolean getFocusPeakingPref() {

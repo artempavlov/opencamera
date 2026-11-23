@@ -1,0 +1,4 @@
+<resources>
+    <string name="pjd_video_mode">Режим видео</string>
+    <string name="pjd_rate">%1$d кадр/с</string>
+</resources>
