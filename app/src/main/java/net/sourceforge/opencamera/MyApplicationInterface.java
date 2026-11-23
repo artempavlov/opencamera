@@ -1429,7 +1429,10 @@ public class MyApplicationInterface extends BasicApplicationInterface {
         }
 
         int photo_cost = imageSaver.computePhotoCost(n_raw, n_jpegs);
-        if( imageSaver.queueWouldBlock(photo_cost) ) {
+        PhotoMode photo_mode = getPhotoMode();
+        boolean extended_raw = n_raw == 1 && n_jpegs == 1 && photo_mode == PhotoMode.Standard
+                && imageSaver.supportsExtendedRawQueue();
+        if( imageSaver.queueWouldBlock(photo_cost, extended_raw) ) {
             if( MyDebug.LOG )
                 Log.d(TAG, "canTakeNewPhoto: no, as queue would block");
             return false;
@@ -1437,7 +1440,6 @@ public class MyApplicationInterface extends BasicApplicationInterface {
 
         // even if the queue isn't full, we may apply additional limits
         int n_images_to_save = imageSaver.getNImagesToSave();
-        PhotoMode photo_mode = getPhotoMode();
         if( photo_mode == PhotoMode.FastBurst || photo_mode == PhotoMode.Panorama ) {
             // only allow one fast burst at a time, so require queue to be empty
             if( n_images_to_save > 0 ) {
@@ -1462,7 +1464,7 @@ public class MyApplicationInterface extends BasicApplicationInterface {
                 return false;
             }
         }
-        if( n_raw > 0 ) {
+        if( n_raw > 0 && !extended_raw ) {
             // if RAW mode, allow a max of 3 photos
             if( n_images_to_save >= 3*photo_cost ) {
                 if( MyDebug.LOG )
@@ -1481,7 +1483,7 @@ public class MyApplicationInterface extends BasicApplicationInterface {
             return false;
         }
         // otherwise, still have a max limit of 5 photos
-        if( n_images_to_save >= 5*photo_cost ) {
+        if( !extended_raw && n_images_to_save >= 5*photo_cost ) {
             if( main_activity.supportsNoiseReduction() && n_images_to_save <= 8 ) {
                 // if we take a photo in NR mode, then switch to std mode, it doesn't make sense to suddenly block!
                 // so need to at least allow a new photo, if the number of photos is less than 1 NR photo

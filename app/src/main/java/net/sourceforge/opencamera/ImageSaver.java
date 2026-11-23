@@ -4,6 +4,7 @@ import net.sourceforge.opencamera.cameracontroller.CameraController;
 import net.sourceforge.opencamera.cameracontroller.RawImage;
 
 import java.io.ByteArrayOutputStream;
+import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileDescriptor;
 import java.io.FileNotFoundException;
@@ -72,6 +73,8 @@ public class ImageSaver extends Thread {
     private int n_images_to_save = 0;
     private int n_real_images_to_save = 0;
     private final int queue_capacity;
+    private final int raw_queue_capacity;
+    private final ActivityManager activityManager;
     private final BlockingQueue<Request> queue;
     private final static int queue_cost_jpeg_c = 1; // also covers WEBP
     private final static int queue_cost_dng_c = 6;
@@ -295,9 +298,16 @@ public class ImageSaver extends Thread {
             Log.d(TAG, "ImageSaver");
         this.main_activity = main_activity;
 
-        ActivityManager activityManager = (ActivityManager) main_activity.getSystemService(Activity.ACTIVITY_SERVICE);
+        activityManager = (ActivityManager) main_activity.getSystemService(Activity.ACTIVITY_SERVICE);
         this.queue_capacity = computeQueueSize(activityManager.getLargeMemoryClass());
-        this.queue = new ArrayBlockingQueue<>(queue_capacity); // since we remove from the queue and then process in the saver thread, in practice the number of background photos - including the one being processed - is one more than the length of this queue
+        ActivityManager.MemoryInfo memory = new ActivityManager.MemoryInfo();
+        activityManager.getMemoryInfo(memory);
+        // Full-size RAW16 is 96 MiB outside the Java heap. Reserve room for up to
+        // eight pending RAW+pictures on this phone only, not for other burst types.
+        raw_queue_capacity = !test_small_queue_size && "PJD110".equals(Build.MODEL)
+                && memory.totalMem >= (10L << 30) && activityManager.getLargeMemoryClass() >= 512
+                ? 8 * (queue_cost_dng_c + queue_cost_jpeg_c) - 1 : queue_capacity;
+        this.queue = new ArrayBlockingQueue<>(raw_queue_capacity);
 
         this.hdrProcessor = new HDRProcessor(main_activity, main_activity.is_test);
         this.panoramaProcessor = new PanoramaProcessor(main_activity, hdrProcessor);
@@ -410,6 +420,15 @@ public class ImageSaver extends Thread {
      * @param photo_cost The result returned by computePhotoCost().
      */
     synchronized boolean queueWouldBlock(int photo_cost) {
+        return queueWouldBlock(photo_cost, false);
+    }
+
+    boolean supportsExtendedRawQueue() {
+        return raw_queue_capacity > queue_capacity;
+    }
+
+    synchronized boolean queueWouldBlock(int photo_cost, boolean extended_raw) {
+        int capacity = extended_raw ? raw_queue_capacity : queue_capacity;
         if( MyDebug.LOG ) {
             Log.d(TAG, "queueWouldBlock");
             Log.d(TAG, "photo_cost: " + photo_cost);
@@ -426,20 +445,26 @@ public class ImageSaver extends Thread {
                 Log.d(TAG, "queue is empty");
             return false;
         }
-        else if( n_images_to_save + photo_cost > queue_capacity + 1 ) {
+        else if( n_images_to_save + photo_cost > capacity + 1 ) {
             if( MyDebug.LOG )
                 Log.d(TAG, "queue would block");
             return true;
         }
-        if( MyDebug.LOG )
-            Log.d(TAG, "queue would not block");
+        if( extended_raw && n_images_to_save >= 3*photo_cost ) {
+            ActivityManager.MemoryInfo memory = new ActivityManager.MemoryInfo();
+            activityManager.getMemoryInfo(memory);
+            Runtime rt = Runtime.getRuntime();
+            if( memory.lowMemory || memory.availMem < memory.threshold + (768L << 20)
+                    || rt.maxMemory() - rt.totalMemory() + rt.freeMemory() < (96L << 20) )
+                return true;
+        }
         return false;
     }
 
     /** Returns the maximum number of DNG images that might be held by the image saver queue at once, before blocking.
      */
     int getMaxDNG() {
-        int max_dng = (queue_capacity+1)/queue_cost_dng_c;
+        int max_dng = (raw_queue_capacity+1)/queue_cost_dng_c;
         max_dng++; // increase by 1, as the user can still take one extra photo if the queue is exactly full
         if( MyDebug.LOG )
             Log.d(TAG, "max_dng = " + max_dng);
@@ -964,7 +989,7 @@ public class ImageSaver extends Thread {
                         }
                     });
                 }
-                if( queue.size() + 1 > queue_capacity ) {
+                if( queue.remainingCapacity() == 0 ) {
                     Log.e(TAG, "ImageSaver thread is going to block, queue already full: " + queue.size());
                     test_queue_blocked = true;
                     //throw new RuntimeException(); // test
@@ -2444,6 +2469,8 @@ public class ImageSaver extends Thread {
             else {
                 output = main_activity.getContentResolver().openOutputStream(saveUri);
             }
+            if( output == null ) throw new IOException("No DNG output stream");
+            output = new BufferedOutputStream(output, 256 * 1024);
             raw_image.writeImage(output);
             raw_image.close();
             raw_image = null;
