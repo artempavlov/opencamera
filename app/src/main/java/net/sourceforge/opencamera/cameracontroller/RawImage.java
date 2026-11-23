@@ -2,6 +2,7 @@ package net.sourceforge.opencamera.cameracontroller;
 
 import android.hardware.camera2.DngCreator;
 import android.media.Image;
+import android.media.ImageReader;
 import android.util.Log;
 
 import net.sourceforge.opencamera.MyDebug;
@@ -16,6 +17,27 @@ public class RawImage {
 
     private final DngCreator dngCreator;
     private final Image image;
+    private ReaderLifetime owner;
+
+    // An acquired Image is invalidated by ImageReader.close(). The saver can
+    // outlive the session, so give it a reference to the reader, not the camera.
+    static final class ReaderLifetime {
+        private final ImageReader reader;
+        private int references = 1; // camera controller's reference
+
+        ReaderLifetime(ImageReader reader) { this.reader = reader; }
+
+        synchronized RawImage handOff(RawImage image) {
+            if( references == 0 || image.owner != null ) throw new IllegalStateException();
+            references++;
+            image.owner = this;
+            return image;
+        }
+
+        synchronized void release() {
+            if( --references == 0 ) reader.close();
+        }
+    }
 
     public RawImage(DngCreator dngCreator, Image image) {
         this.dngCreator = dngCreator;
@@ -50,7 +72,11 @@ public class RawImage {
     public void close() {
         if( MyDebug.LOG )
             Log.d(TAG, "close");
-        image.close();
-        dngCreator.close();
+        try {
+            image.close();
+            dngCreator.close();
+        } finally {
+            if( owner != null ) { owner.release(); owner = null; }
+        }
     }
 }

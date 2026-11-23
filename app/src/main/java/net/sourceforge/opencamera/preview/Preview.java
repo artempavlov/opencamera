@@ -179,6 +179,24 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
     //private boolean ui_placement_right = true;
 
     private boolean app_is_paused = true; // whether activity is paused
+    // Main thread only. Home may arrive before even the final Camera2 result.
+    private boolean drainingStill;
+    private SurfaceTexture heldTexture;
+    private final Handler drainHandler = new Handler(android.os.Looper.getMainLooper());
+    private final Runnable drainTimeout = () -> finishStillDrain(true);
+
+    private void finishStillDrain(boolean timeout) {
+        if( !drainingStill ) return;
+        drainHandler.removeCallbacks(drainTimeout);
+        drainingStill = false;
+        if( timeout ) Log.w(TAG, "Timed out waiting for paused still capture");
+        final SurfaceTexture texture = heldTexture;
+        heldTexture = null;
+        closeCamera(true, () -> {
+            if( texture != null ) texture.release();
+        });
+        if( close_camera_task != null && !is_paused ) close_camera_task.reopen = true;
+    }
     private boolean is_paused = true; // whether Preview.onPause() is called - note this could include the application pausing the preview, even if app_is_paused==false
     private boolean has_surface;
     private boolean has_aspect_ratio;
@@ -1103,6 +1121,14 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
         this.set_textureview_size = false;
         this.textureview_w = 0;
         this.textureview_h = 0;
+        if( drainingStill && heldTexture == null ) {
+            // TextureView transfers ownership when false is returned. Release only
+            // after disconnect; the session may still need this output for AF.
+            heldTexture = arg0;
+            has_surface = false;
+            return false;
+        }
+        if( drainingStill ) { has_surface = false; return true; }
         mySurfaceDestroyed();
         return true;
     }
@@ -1617,6 +1643,7 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
      *  If camera_open_state is already CAMERAOPENSTATE_OPENING, this method does nothing.
      */
     private void openCamera() {
+        if( drainingStill ) return;
         long debug_time = 0;
         if( MyDebug.LOG ) {
             Log.d(TAG, "openCamera()");
@@ -5560,6 +5587,7 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
      * @param continuous_fast_burst If true, then start a continuous fast burst.
      */
     public void takePicturePressed(boolean photo_snapshot, boolean continuous_fast_burst) {
+        if( drainingStill || app_is_paused ) return;
         if( MyDebug.LOG )
             Log.d(TAG, "takePicturePressed");
         if( camera_controller == null ) {
@@ -6617,7 +6645,7 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
             applicationInterface.cameraInOperation(false, false);
             return;
         }
-        if( !this.has_surface ) {
+        if( !this.has_surface && !(drainingStill && heldTexture != null) ) {
             if( MyDebug.LOG )
                 Log.d(TAG, "preview surface not yet available");
             this.phase = PHASE_NORMAL;
@@ -6679,6 +6707,12 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
                 if( MyDebug.LOG )
                     Log.d(TAG, "onCompleted");
                 applicationInterface.onPictureCompleted();
+                if( drainingStill ) {
+                    phase = PHASE_NORMAL;
+                    applicationInterface.cameraInOperation(false, false);
+                    drainHandler.post(() -> finishStillDrain(false));
+                    return;
+                }
                 if( !using_android_l ) {
                     //is_preview_started = false; // preview automatically stopped due to taking photo on original Camera API
                     preview_started_state = PREVIEW_NOT_STARTED; // preview automatically stopped due to taking photo on original Camera API
@@ -6836,6 +6870,10 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
                 }
                 applicationInterface.onPhotoError();
                 phase = PHASE_NORMAL;
+                if( drainingStill ) {
+                    drainHandler.post(() -> finishStillDrain(false));
+                    return;
+                }
                 startCameraPreview(true, null);
                 applicationInterface.cameraInOperation(false, false);
             }
@@ -8081,7 +8119,17 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
         }
         //final boolean use_background_thread = false;
         final boolean use_background_thread = true;
-        this.closeCamera(use_background_thread, null);
+        if( activity_is_pausing && using_android_l && !is_video && isTakingPhoto() && camera_controller != null ) {
+            if( !drainingStill ) {
+                drainingStill = true;
+                cancelRepeat();
+                if( camera_controller.getBurstType() == CameraController.BurstType.BURSTTYPE_CONTINUOUS )
+                    camera_controller.stopContinuousBurst();
+                long exposureMs = Math.max(0, camera_controller.getExposureTime() / 1000000);
+                drainHandler.postDelayed(drainTimeout, 4500 + Math.min(exposureMs, 32000));
+            }
+        }
+        else if( !drainingStill ) this.closeCamera(use_background_thread, null);
         cameraSurface.onPause();
         if( canvasView != null )
             canvasView.onPause();
@@ -8089,6 +8137,7 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
     }
 
     public void onDestroy() {
+        finishStillDrain(false);
         if( MyDebug.LOG )
             Log.d(TAG, "onDestroy");
 

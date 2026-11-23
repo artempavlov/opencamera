@@ -245,6 +245,7 @@ public class CameraController2 extends CameraController {
     private int max_raw_images;
     private android.util.Size raw_size;
     private ImageReader imageReaderRaw;
+    private RawImage.ReaderLifetime rawReaderLifetime;
     private OnImageAvailableListener onImageAvailableListener;
     private OnRawImageAvailableListener onRawImageAvailableListener;
     private PictureCallback picture_cb;
@@ -1018,10 +1019,11 @@ public class CameraController2 extends CameraController {
                 // burst-only code
                 // need to call without a lock
                 if( single_burst_complete_images != null ) {
+                    for( RawImage raw : single_burst_complete_images ) rawReaderLifetime.handOff(raw);
                     picture_cb.onRawBurstPictureTaken(single_burst_complete_images);
                 }
                 else if( !burst_single_request ) {
-                    picture_cb.onRawPictureTaken(new RawImage(dngCreator, image));
+                    picture_cb.onRawPictureTaken(rawReaderLifetime.handOff(new RawImage(dngCreator, image)));
                 }
 
                 synchronized( background_camera_lock ) {
@@ -1612,7 +1614,9 @@ public class CameraController2 extends CameraController {
             onImageAvailableListener = null;
         }
         if( imageReaderRaw != null ) {
-            imageReaderRaw.close();
+            imageReaderRaw.setOnImageAvailableListener(null, null);
+            rawReaderLifetime.release();
+            rawReaderLifetime = null;
             imageReaderRaw = null;
             onRawImageAvailableListener = null;
         }
@@ -4131,6 +4135,7 @@ public class CameraController2 extends CameraController {
             // unlike the JPEG imageReader, we can't read the data and close the image straight away, so we need to allow a larger
             // value for maxImages
             imageReaderRaw = ImageReader.newInstance(raw_size.getWidth(), raw_size.getHeight(), ImageFormat.RAW_SENSOR, max_raw_images);
+            rawReaderLifetime = new RawImage.ReaderLifetime(imageReaderRaw);
             if( MyDebug.LOG ) {
                 Log.d(TAG, "created new imageReaderRaw: " + imageReaderRaw);
                 Log.d(TAG, "imageReaderRaw surface: " + imageReaderRaw.getSurface().toString());
@@ -4172,7 +4177,7 @@ public class CameraController2 extends CameraController {
                 raw_todo = false;
             }
             // don't call callback with lock
-            picture_cb.onRawPictureTaken(pending_raw_image);
+            picture_cb.onRawPictureTaken(rawReaderLifetime.handOff(pending_raw_image));
             // pending_raw_image should be closed by the application (we don't do it here, so that applications can keep hold of the data, e.g., in a queue for background processing)
             pending_raw_image = null;
             if( onRawImageAvailableListener != null ) {
