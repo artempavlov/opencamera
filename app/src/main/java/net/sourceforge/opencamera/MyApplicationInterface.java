@@ -1892,7 +1892,7 @@ public class MyApplicationInterface extends BasicApplicationInterface {
 
     @Override
     public int getMaxRawImages() {
-        return imageSaver.getMaxDNG();
+        return imageSaver.getMaxDNG(getPhotoMode() == PhotoMode.Standard);
     }
 
     @Override

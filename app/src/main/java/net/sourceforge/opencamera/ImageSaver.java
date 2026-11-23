@@ -74,6 +74,7 @@ public class ImageSaver extends Thread {
     private int n_real_images_to_save = 0;
     private final int queue_capacity;
     private final int raw_queue_capacity;
+    private static final int STANDARD_RAW_PAIRS = 30;
     private final ActivityManager activityManager;
     private final BlockingQueue<Request> queue;
     private final static int queue_cost_jpeg_c = 1; // also covers WEBP
@@ -303,10 +304,10 @@ public class ImageSaver extends Thread {
         ActivityManager.MemoryInfo memory = new ActivityManager.MemoryInfo();
         activityManager.getMemoryInfo(memory);
         // Full-size RAW16 is 96 MiB outside the Java heap. Reserve room for up to
-        // eight pending RAW+pictures on this phone only, not for other burst types.
+        // STANDARD_RAW_PAIRS pending RAW+pictures on this phone only, not for other burst types.
         raw_queue_capacity = !test_small_queue_size && "PJD110".equals(Build.MODEL)
                 && memory.totalMem >= (10L << 30) && activityManager.getLargeMemoryClass() >= 512
-                ? 8 * (queue_cost_dng_c + queue_cost_jpeg_c) - 1 : queue_capacity;
+                ? STANDARD_RAW_PAIRS * (queue_cost_dng_c + queue_cost_jpeg_c) - 1 : queue_capacity;
         this.queue = new ArrayBlockingQueue<>(raw_queue_capacity);
 
         this.hdrProcessor = new HDRProcessor(main_activity, main_activity.is_test);
@@ -463,8 +464,12 @@ public class ImageSaver extends Thread {
 
     /** Returns the maximum number of DNG images that might be held by the image saver queue at once, before blocking.
      */
-    int getMaxDNG() {
-        int max_dng = (raw_queue_capacity+1)/queue_cost_dng_c;
+    int getMaxDNG(boolean standard_mode) {
+        if( standard_mode && supportsExtendedRawQueue() ) {
+            // One DNG per pair, plus one slot for the capture being delivered.
+            return STANDARD_RAW_PAIRS + 1;
+        }
+        int max_dng = (queue_capacity+1)/queue_cost_dng_c;
         max_dng++; // increase by 1, as the user can still take one extra photo if the queue is exactly full
         if( MyDebug.LOG )
             Log.d(TAG, "max_dng = " + max_dng);
