@@ -1,40 +1,42 @@
-# Open Camera FPS для OnePlus 12
+# Open Camera for OnePlus 12
 
-Неофициальная сборка [Open Camera](https://sourceforge.net/p/opencamera/code/) для OnePlus 12 (PJD110). Основана на теге `v1.56.2`; версия обеих сборок — `1.56.2`, код версии — `99`.
+An unofficial build of [Open Camera](https://sourceforge.net/p/opencamera/code/) for the OnePlus 12 (PJD110), based on version `1.56.2`.
 
-На основной камере откройте **`2: Back Camera` → Видео → ⋮ → `Video mode`**. Сначала выберите частоту, затем разрешение. В меню есть 720p60, 1080p60 и 4K60. Если драйвер сообщает соответствующие режимы, можно также выбрать **24 fps → 8K** или **480 fps → 2048×1152**.
+Select **`2: Back Camera` → Video → ⋮ → Video mode** to choose a frame rate and resolution. The menu supports 720p, 1080p, and 4K at 60 frames per second. When the camera driver exposes the modes, it also offers 8K at 24 frames per second and 2048 × 1152 at 480 frames per second.
 
-Приложение завершает сохранение уже снятого RAW при выходе на главный экран. В обычном фоторежиме очередь на PJD110 вмещает до 30 пар DNG + JPEG/PNG. При нехватке RAM затвор может приостановиться раньше. Это размер очереди, а не скорость серийной съёмки.
+The app finishes saving a captured RAW image when you go to the home screen. On the PJD110, standard photo mode can queue up to 30 DNG + JPEG/PNG pairs. The shutter can pause sooner if memory runs low. This is the queue capacity, not a burst rate.
 
-### Что зависит от драйвера
+## Camera driver requirements
 
-На прошивке `PJD110_16.0.2.400(CN01)` для сторонних приложений 8K24, 2048×1152 при 480 кадр/с и 50-Мп RAW с ISO 6400 проверялись с отдельным модулем Magisk **OnePlus 12 Camera v5**. Сам APK эти режимы в драйвер не добавляет. Доработки сохранения файлов находятся в приложении.
+On firmware `PJD110_16.0.2.400(CN01)`, 8K at 24 frames per second, 2048 × 1152 at 480 frames per second, and 50-megapixel RAW at ISO 6400 were verified with the separate **OnePlus 12 Camera v5** Magisk module. The APK does not add these modes to the camera driver. The file-saving fixes do not require the module.
 
-### Сборка
+## Build
 
-Нужны JDK 21 и Android SDK с платформой 36. Укажите SDK через `ANDROID_HOME` или `local.properties`. Из корня репозитория:
+Use JDK 21 and Android SDK Platform 36. Set `ANDROID_HOME` or configure the SDK in `local.properties`, then run:
 
 ```sh
 ./gradlew :app:assembleDebug
 ```
 
-Результат — `app/build/outputs/apk/debug/app-debug.apk`, пакет `net.sourceforge.opencamera.pjd110`.
+The output is `app/build/outputs/apk/debug/app-debug.apk`. The default application ID is `net.sourceforge.opencamera.pjd110`.
 
-Чтобы установить тот же код рядом с основной копией, укажите другой ID пакета:
+To install a second copy alongside the default one, build the same source with a different application ID:
 
 ```sh
 ./gradlew :app:assembleDebug -PcameraApplicationId=com.example.mycamera
 ```
 
-Название под иконкой и папку по умолчанию можно задать независимо. Например, чтобы собрать APK для обновления уже установленной **Open Camera FPS 2**:
+Use `cameraAppName` to change the launcher label and `cameraSaveFolder` to change the default save folder. For example:
 
 ```sh
 ./gradlew :app:assembleDebug \
   -PcameraApplicationId=net.sourceforge.opencamera.pjd110.second \
-  '-PcameraAppName=Open Camera FPS 2' \
-  -PcameraSaveFolder=OpenCameraFPS2
+  '-PcameraAppName=Open Camera 2' \
+  -PcameraSaveFolder=OpenCamera2
 ```
 
-Разные ID пакетов дают отдельные настройки. Если не указать `cameraSaveFolder`, обе установки по умолчанию используют `DCIM/OpenCamera`. Скопируйте готовый APK перед следующей сборкой: путь результата у них один. Для обновления уже установленного APK Android требует подпись тем же ключом.
+Different application IDs keep app settings separate. Unless you set `cameraSaveFolder`, both copies default to `DCIM/OpenCamera`. Copy the APK before building another variant because the output path is the same. To update an existing installation, keep its application ID and sign the APK with the same key.
 
-Лицензия Open Camera: [GPLv3](gpl-3.0.txt). Уведомления и лицензии сторонних компонентов сохранены из upstream.
+## License
+
+[GPLv3](gpl-3.0.txt). Upstream notices and third-party licenses are included.

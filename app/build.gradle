@@ -12,7 +12,7 @@ android {
     defaultConfig {
         applicationId packageId
         resValue 'string', 'pjd_package_id', packageId
-        resValue 'string', 'pjd_app_name', providers.gradleProperty('cameraAppName').getOrElse('Open Camera FPS')
+        resValue 'string', 'pjd_app_name', providers.gradleProperty('cameraAppName').getOrElse('Open Camera')
         resValue 'string', 'pjd_save_folder', providers.gradleProperty('cameraSaveFolder').getOrElse('OpenCamera')
         minSdkVersion 23
         targetSdkVersion 36
