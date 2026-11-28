@@ -16,6 +16,7 @@ public class RawImage {
     private static final String TAG = "RawImage";
 
     private final DngCreator dngCreator;
+    private final BinnedDng binnedDng;
     private final Image image;
     private ReaderLifetime owner;
 
@@ -41,6 +42,13 @@ public class RawImage {
 
     public RawImage(DngCreator dngCreator, Image image) {
         this.dngCreator = dngCreator;
+        this.binnedDng = null;
+        this.image = image;
+    }
+
+    RawImage(BinnedDng binnedDng, Image image) {
+        this.dngCreator = null;
+        this.binnedDng = binnedDng;
         this.image = image;
     }
 
@@ -50,7 +58,8 @@ public class RawImage {
         if( MyDebug.LOG )
             Log.d(TAG, "writeImage");
         try {
-            dngCreator.writeImage(dngOutput, image);
+            if( binnedDng != null ) binnedDng.write(dngOutput, image);
+            else dngCreator.writeImage(dngOutput, image);
         }
         catch(AssertionError e) {
             // have had AssertionError from OnePlus 5 on Google Play; rethrow as an IOException so it's handled
@@ -74,7 +83,7 @@ public class RawImage {
             Log.d(TAG, "close");
         try {
             image.close();
-            dngCreator.close();
+            if( dngCreator != null ) dngCreator.close();
         } finally {
             if( owner != null ) { owner.release(); owner = null; }
         }

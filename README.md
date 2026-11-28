@@ -6,6 +6,8 @@ Select **`2: Back Camera` → Video → ⋮ → Video mode** to choose a frame r
 
 The app finishes saving a captured RAW image when you go to the home screen. On the PJD110, standard photo mode can queue up to 30 DNG + JPEG/PNG pairs. The shutter can pause sooner if memory runs low. This is the queue capacity, not a burst rate.
 
+On the PJD110 main rear camera (`2: Back Camera`), open **Settings → Photo settings → RAW resolution** to choose 50 MP (8192 × 6144) or 12.6 MP (4096 × 3072). The setting appears when the driver exposes both RAW sizes. It does not change JPEG or PNG resolution. Enable RAW separately in the same menu.
+
 ## Camera driver requirements
 
 On firmware `PJD110_16.0.2.400(CN01)`, 8K at 24 frames per second, 2048 × 1152 at 480 frames per second, and 50-megapixel RAW at ISO 6400 were verified with the separate **OnePlus 12 Camera v5** Magisk module. The APK does not add these modes to the camera driver. The file-saving fixes do not require the module.

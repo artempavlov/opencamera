@@ -130,6 +130,14 @@ public class PreferenceSubPhoto extends PreferenceSubScreen {
             pref.setEntryValues(R.array.preference_image_format_values_nojpegr);
         }
 
+        ListPreference rawSize = (ListPreference)findPreference(PreferenceKeys.RawSizePreferenceKey);
+        if( !supports_raw || !bundle.getBoolean("supports_pjd_raw_size") ) {
+            ((PreferenceGroup)findPreference("preferences_root")).removePreference(rawSize);
+        }
+        else {
+            rawSize.setEntries(new CharSequence[]{getString(R.string.raw_size_50), getString(R.string.raw_size_12)});
+            rawSize.setEntryValues(new CharSequence[]{"8192x6144", "4096x3072"});
+        }
         if( !supports_raw ) {
             Preference pref = findPreference("preference_raw");
             //PreferenceGroup pg = (PreferenceGroup)this.findPreference("preference_screen_photo_settings");

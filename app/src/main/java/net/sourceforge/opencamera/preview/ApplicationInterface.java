@@ -187,6 +187,7 @@ public interface ApplicationInterface {
         RAWPREF_JPEG_DNG // JPEG and RAW (DNG)
     }
     RawPref getRawPref(); // whether to enable RAW photos
+    default boolean prefersBinnedRaw() { return false; }
     int getMaxRawImages(); // see documentation of CameraController.setRaw(), corresponds to max_raw_images
     boolean useCamera2DummyCaptureHack(); // whether to enable CameraController.setDummyCaptureHack() for Camera2 API
     boolean useCamera2FakeFlash(); // whether to enable CameraController.setUseCamera2FakeFlash() for Camera2 API

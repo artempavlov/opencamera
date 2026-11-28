@@ -94,6 +94,7 @@ public class PreferenceKeys {
     public static final String ExposureTimePreferenceKey = "preference_exposure_time";
 
     public static final String RawPreferenceKey = "preference_raw";
+    public static final String RawSizePreferenceKey = "preference_pjd_raw_size";
 
     public static final String AllowRawForExpoBracketingPreferenceKey = "preference_raw_expo_bracketing";
 

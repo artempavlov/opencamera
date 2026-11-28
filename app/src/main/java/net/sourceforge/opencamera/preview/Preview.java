@@ -2261,6 +2261,9 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
             camera_controller.setJpegR(false);
         }
 
+        if( camera_controller instanceof CameraController2 ) {
+            ((CameraController2) camera_controller).selectPjdRawSize(applicationInterface.prefersBinnedRaw());
+        }
         if( this.supports_raw && applicationInterface.getRawPref() != ApplicationInterface.RawPref.RAWPREF_JPEG_ONLY ) {
             camera_controller.setRaw(true, applicationInterface.getMaxRawImages());
         }
@@ -7802,6 +7805,10 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
 
     public boolean supportsRaw() {
         return this.supports_raw;
+    }
+
+    public boolean supportsPjdRawSizeChoice() {
+        return camera_controller instanceof CameraController2 && ((CameraController2) camera_controller).supportsPjdRawSizeChoice();
     }
 
     /** Returns the horizontal angle of view in degrees (when unzoomed).

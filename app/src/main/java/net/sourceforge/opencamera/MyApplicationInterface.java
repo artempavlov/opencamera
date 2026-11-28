@@ -1857,6 +1857,11 @@ public class MyApplicationInterface extends BasicApplicationInterface {
      *  processing or saving on the JPEG.
      */
     @Override
+    public boolean prefersBinnedRaw() {
+        return "4096x3072".equals(sharedPreferences.getString(PreferenceKeys.RawSizePreferenceKey, "8192x6144"));
+    }
+
+    @Override
     public RawPref getRawPref() {
         PhotoMode photo_mode = getPhotoMode();
         if( isRawAllowed(photo_mode) ) {

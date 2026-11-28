@@ -55,6 +55,12 @@
         android:defaultValue="preference_raw_no"
         />
 
+    <ListPreference
+        android:key="preference_pjd_raw_size"
+        android:title="@string/raw_size_title"
+        android:summary="%s"
+        android:defaultValue="8192x6144" />
+
     <!--  if we move this to another PreferenceGroup, we should update code to remove this Preference -->
     <SwitchPreference
         android:key="preference_raw_expo_bracketing"

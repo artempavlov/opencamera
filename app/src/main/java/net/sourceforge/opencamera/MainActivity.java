@@ -2674,6 +2674,7 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
         bundle.putBoolean("supports_face_detection", this.preview.supportsFaceDetection());
         bundle.putBoolean("supports_jpeg_r", this.preview.supportsJpegR());
         bundle.putBoolean("supports_raw", this.preview.supportsRaw());
+        bundle.putBoolean("supports_pjd_raw_size", this.preview.supportsPjdRawSizeChoice());
         bundle.putBoolean("supports_burst_raw", this.supportsBurstRaw());
         bundle.putBoolean("supports_optimise_focus_latency", this.supportsOptimiseFocusLatency());
         bundle.putBoolean("supports_preshots", this.supportsPreShots());

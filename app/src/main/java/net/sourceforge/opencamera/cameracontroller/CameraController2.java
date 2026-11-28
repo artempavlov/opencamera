@@ -244,6 +244,9 @@ public class CameraController2 extends CameraController {
     //private boolean want_raw = true;
     private int max_raw_images;
     private android.util.Size raw_size;
+    private android.util.Size binned_raw_size;
+    private android.util.Size full_raw_size;
+    private boolean useBinnedDng;
     private ImageReader imageReaderRaw;
     private RawImage.ReaderLifetime rawReaderLifetime;
     private OnImageAvailableListener onImageAvailableListener;
@@ -951,7 +954,7 @@ public class CameraController2 extends CameraController {
 
             List<RawImage> single_burst_complete_images = null;
             boolean call_takePhotoCompleted = false;
-            DngCreator dngCreator;
+            RawImage rawImage;
             CaptureResult capture_result;
             Image image;
 
@@ -972,11 +975,16 @@ public class CameraController2 extends CameraController {
                     Log.d(TAG, "now have all info to process raw image");
                     Log.d(TAG, "image timestamp: " + image.getTimestamp());
                 }
-                dngCreator = new DngCreator(characteristics, capture_result);
-                // set fields
-                dngCreator.setOrientation(camera_settings.getExifOrientation());
-                if( camera_settings.location != null ) {
-                    dngCreator.setLocation(camera_settings.location);
+                if( useBinnedDng ) {
+                    rawImage = new RawImage(new BinnedDng(characteristics, capture_result, camera_settings.getExifOrientation()), image);
+                }
+                else {
+                    DngCreator dngCreator = new DngCreator(characteristics, capture_result);
+                    dngCreator.setOrientation(camera_settings.getExifOrientation());
+                    if( camera_settings.location != null ) {
+                        dngCreator.setLocation(camera_settings.location);
+                    }
+                    rawImage = new RawImage(dngCreator, image);
                 }
 
                 if( n_burst_total == 1 && burst_type != BurstType.BURSTTYPE_CONTINUOUS ) {
@@ -985,10 +993,10 @@ public class CameraController2 extends CameraController {
                     // This isn't required, but can give an appearance of better performance to the user, as the thumbnail
                     // animation for a photo having been taken comes from the JPEG.
                     // We don't do this for burst mode, as it would get too complicated trying to enforce an ordering...
-                    pending_raw_image = new RawImage(dngCreator, image);
+                    pending_raw_image = rawImage;
                 }
                 else if( burst_single_request ) {
-                    pending_burst_images_raw.add(new RawImage(dngCreator, image));
+                    pending_burst_images_raw.add(rawImage);
                     if( MyDebug.LOG ) {
                         Log.d(TAG, "pending_burst_images_raw size is now: " + pending_burst_images_raw.size());
                     }
@@ -1023,7 +1031,7 @@ public class CameraController2 extends CameraController {
                     picture_cb.onRawBurstPictureTaken(single_burst_complete_images);
                 }
                 else if( !burst_single_request ) {
-                    picture_cb.onRawPictureTaken(rawReaderLifetime.handOff(new RawImage(dngCreator, image)));
+                    picture_cb.onRawPictureTaken(rawReaderLifetime.handOff(rawImage));
                 }
 
                 synchronized( background_camera_lock ) {
@@ -2177,6 +2185,8 @@ public class CameraController2 extends CameraController {
         //camera_features.picture_sizes.get(0).supports_burst = false;
 
         raw_size = null;
+        binned_raw_size = null;
+        full_raw_size = null;
         if( capabilities_raw ) {
             android.util.Size [] raw_camera_picture_sizes = configs.getOutputSizes(ImageFormat.RAW_SENSOR);
             if( raw_camera_picture_sizes == null ) {
@@ -2186,6 +2196,7 @@ public class CameraController2 extends CameraController {
             }
             else {
                 for(android.util.Size size : raw_camera_picture_sizes) {
+                    if( size.getWidth() == BinnedDng.WIDTH && size.getHeight() == BinnedDng.HEIGHT ) binned_raw_size = size;
                     if( raw_size == null || size.getWidth()*size.getHeight() > raw_size.getWidth()*raw_size.getHeight() ) {
                         raw_size = size;
                     }
@@ -2199,6 +2210,7 @@ public class CameraController2 extends CameraController {
                     if( MyDebug.LOG )
                         Log.d(TAG, "raw supported, raw size: " + raw_size.getWidth() + " x " + raw_size.getHeight());
                     camera_features.supports_raw = true;                
+                    full_raw_size = raw_size;
                 }
             }
         }
@@ -3824,6 +3836,17 @@ public class CameraController2 extends CameraController {
             throw new RuntimeException(); // throw as RuntimeException, as this is a programming error
         }
         this.want_jpeg_r = want_jpeg_r;
+    }
+
+    public boolean supportsPjdRawSizeChoice() {
+        return "PJD110".equals(Build.MODEL) && "PJD110_16.0.2.400(CN01)".equals(Build.DISPLAY)
+                && "2".equals(cameraIdS) && cameraIdSPhysical == null && binned_raw_size != null
+                && full_raw_size != null && full_raw_size.getWidth() == 8192 && full_raw_size.getHeight() == 6144;
+    }
+
+    public void selectPjdRawSize(boolean binned) {
+        useBinnedDng = binned && supportsPjdRawSizeChoice();
+        raw_size = useBinnedDng ? binned_raw_size : full_raw_size;
     }
 
     @Override
